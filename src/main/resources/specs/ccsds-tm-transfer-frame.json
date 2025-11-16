@@ -33,14 +33,14 @@
       "name": "masterChannelFrameCount",
       "offset": 0,
       "widthBits": 8,
-	  "type": "counter",
+	  "type": "fixed",
       "value": 0
     },
     {
       "name": "virtualChannelFrameCount",
       "offset": 0,
       "widthBits": 8,
-	  "type": "counter",
+	  "type": "fixed",
       "value": 0
     },
 	{

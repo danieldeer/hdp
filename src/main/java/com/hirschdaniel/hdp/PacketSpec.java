@@ -6,20 +6,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PacketSpec {
   public String name;
-  public int totalLength;
+  public Integer totalLength; // make optional
   public List<Field> fields;
-
-  public String getName() {
-    return name;
-  }
-
-  public int getTotalLength() {
-    return totalLength;
-  }
-
-  public List<Field> getFields() {
-    return fields;
-  }
 }
 
 
@@ -28,53 +16,10 @@ class Field {
   public int offset;
   public Object widthBits;
   public Object value;
-  public String type;
-  public String compute;
+  public FieldType type;
+  public LengthEncoding lengthEncoding;
+  public Object defaultValue; // NEW
   public boolean pad;
   public String poly, init, over;
   public String padValue;
-
-  public String getName() {
-    return name;
-  }
-
-  public int getOffset() {
-    return offset;
-  }
-
-  public Object getWidthBits() {
-    return widthBits;
-  }
-
-  public Object getValue() {
-    return value;
-  }
-
-  public String getType() {
-    return type;
-  }
-
-  public String getCompute() {
-    return compute;
-  }
-
-  public boolean isPad() {
-    return pad;
-  }
-
-  public String getPoly() {
-    return poly;
-  }
-
-  public String getInit() {
-    return init;
-  }
-
-  public String getOver() {
-    return over;
-  }
-
-  public String getPadValue() {
-    return padValue;
-  }
 }

@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.Callable;
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -24,30 +26,36 @@ public class Generator implements Callable<Integer> {
   @Option(names = "--output", required = true, description = "Output binary file")
   File outputFile;
 
-  @Option(names = "--vcid", description = "Virtual Channel ID (overrides spec)")
-  int vcid = 0;
-
   @Override
   public Integer call() {
+    if (!inputFile.exists()) {
+      System.err.printf("Input file %s doesn't exist\n", inputFile.getAbsoluteFile());
+      return -1;
+    }
+
     try {
-      byte[] input = loadInput(inputFile); // Bytes or parse hex
-      PacketSpec spec = loadSpec(specFile); // Jackson: new ObjectMapper().readValue()
-      // Override fixed values if CLI args (e.g., spec.fields.get("vcid").value = vcid;
+
+      byte[] input = loadInput(inputFile);
+      PacketSpec spec = loadSpec(specFile);
 
       PacketGenerator gen = new PacketGenerator(spec, input);
       byte[] packet = gen.generate();
 
       Files.write(outputFile.toPath(), packet);
-      System.out.println("Generated " + packet.length + " bytes: " + outputFile);
+      System.out.printf("Generated %d bytes output: %s\n", packet.length,
+          outputFile.getAbsolutePath());
       return 0;
     } catch (Exception e) {
+      System.err.println(e);
       return 1;
     }
   }
 
   private PacketSpec loadSpec(File specFile) {
     try {
-      return new ObjectMapper().readValue(specFile, PacketSpec.class);
+      ObjectMapper mapper =
+          JsonMapper.builder().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true).build();
+      return mapper.readValue(specFile, PacketSpec.class);
     } catch (Exception e) {
       e.printStackTrace();
       System.exit(-1);

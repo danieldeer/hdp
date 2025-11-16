@@ -1,5 +1,6 @@
 package com.hirschdaniel.hdp;
 
+import java.util.Arrays;
 import java.util.BitSet;
 
 public class PacketGenerator {
@@ -7,7 +8,6 @@ public class PacketGenerator {
   private final byte[] inputData;
   private final BitSet packetBits = new BitSet(16384);
   private int currentBit = 0;
-  private int counter = 0;
 
   public PacketGenerator(PacketSpec spec, byte[] inputData) {
     this.spec = spec;
@@ -15,60 +15,83 @@ public class PacketGenerator {
   }
 
   public byte[] generate() {
-    int totalBits = spec.totalLength * 8;
     embedFields();
-    if (currentBit < totalBits) {
-      padToTotalLength(totalBits, 0xFF);
+
+    int totalBits;
+    if (spec.totalLength != null) {
+      totalBits = spec.totalLength * 8;
+      if (currentBit < totalBits) {
+        padToTotalLength(totalBits, 0xFF);
+      }
+    } else {
+      // variable-length packet
+      totalBits = currentBit;
     }
+
     return bitsToBytes(totalBits);
   }
 
+
   private void embedFields() {
     for (Field field : spec.fields) {
-      String type = field.type != null ? field.type : "fixed";
       int width = resolveWidth(field);
 
-      switch (type) {
-        case "fixed" -> {
-          long val = parseValue(field.value);
+      switch (field.type) {
+
+        case FIXED -> {
+          long val = field.value != null ? parseValue(field.value)
+              : (field.defaultValue != null ? parseValue(field.defaultValue) : 0);
           setBits(currentBit, width, val);
           currentBit += width;
         }
-        case "counter" -> {
-          long val = counter++;
-          setBits(currentBit, width, val);
-          currentBit += width;
-        }
-        case "input" -> {
+
+        case INPUT -> {
           embedData(field);
         }
-        case "crc" -> {
+
+        case CRC -> {
           long crcVal = computeCrc(field, currentBit);
           setBits(currentBit, width, crcVal);
           currentBit += width;
         }
-        case "length" -> {
-          // depends how length is encoded. Usually it's just length in bytes
-          // but can also be length in bits
-          // or length in bytes -1. For now, this supports only length in bytes
-          long len = inputData.length;
-          setBits(currentBit, width, len);
+
+        case LENGTH -> {
+          long val = encodeLength(field);
+          setBits(currentBit, width, val);
           currentBit += width;
         }
-        case "pad" -> {
+
+        case PAD -> {
           int padValue = (int) parseValue(field.padValue);
-          padBits(currentBit, width, true);
+          padBits(currentBit, width, padValue != 0);
           currentBit += width;
         }
+
         default -> {
-          long val = parseValue(field.value);
+          long val = field.value != null ? parseValue(field.value) : 0;
           setBits(currentBit, width, val);
           currentBit += width;
         }
       }
     }
-
   }
+
+  private long encodeLength(Field lengthField) {
+    int lenBytes = inputData.length;
+    int lenBits = lenBytes * 8;
+
+    return switch (lengthField.lengthEncoding) {
+      case LengthEncoding.BYTES -> lenBytes;
+      case LengthEncoding.BYTESMINUSONE -> lenBytes - 1;
+      case LengthEncoding.BITS -> lenBits;
+      case LengthEncoding.BITSMINUSONE -> lenBits - 1;
+
+      default -> throw new IllegalArgumentException(
+          String.format("Unknown compute mode: %s. Accepted values are ",
+              Arrays.asList(LengthEncoding.values())));
+    };
+  }
+
 
   private void padBits(int startBit, int width, boolean padValue) {
     packetBits.set(startBit, startBit + width, padValue);
@@ -97,7 +120,7 @@ public class PacketGenerator {
   }
 
   private int resolveWidth(Field f) {
-    if ("pad".equalsIgnoreCase(f.type)) {
+    if (FieldType.PAD.equals(f.type)) {
       // Compute total bits already consumed by all *other* fields
       int usedBits = spec.fields.stream().filter(x -> x != f) // exclude the pad field itself
           .mapToInt(this::resolveWidthSafe).sum();
@@ -113,17 +136,17 @@ public class PacketGenerator {
     if (f.widthBits instanceof Number n) {
       return n.intValue();
     }
-    if (f.widthBits instanceof String s) {
-      if (s.equalsIgnoreCase("dynamic"))
+    if (f.widthBits instanceof String widthString) {
+      if (widthString.equalsIgnoreCase("dynamic"))
         return inputData.length * 8;
-      if (s.startsWith("0b"))
-        return Integer.parseInt(s.substring(2), 2);
-      if (s.startsWith("0x"))
-        return Integer.parseInt(s.substring(2), 16);
+      if (widthString.startsWith("0b"))
+        return Integer.parseInt(widthString.substring(2), 2);
+      if (widthString.startsWith("0x"))
+        return Integer.parseInt(widthString.substring(2), 16);
       try {
-        return Integer.parseInt(s);
+        return Integer.parseInt(widthString);
       } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("Invalid widthBits: " + s);
+        throw new IllegalArgumentException("Invalid widthBits: " + widthString);
       }
     }
     throw new IllegalArgumentException("Unsupported widthBits type: " + f.widthBits);
@@ -132,17 +155,17 @@ public class PacketGenerator {
 
   // helper method that ignores pad fields and avoids recursion
   private int resolveWidthSafe(Field f) {
-    if ("pad".equalsIgnoreCase(f.type)) {
+    if (f.type.equals(FieldType.PAD)) {
       return 0; // don't count pad fields when computing pad width
     }
-    if ("input".equalsIgnoreCase(f.type)) {
+    if (f.type.equals(FieldType.INPUT)) {
       return inputData.length * 8;
     }
-    if (f.widthBits instanceof Number n) {
-      return n.intValue();
+    if (f.widthBits instanceof Number number) {
+      return number.intValue();
     }
-    if (f.widthBits instanceof String s) {
-      return Integer.parseInt(s);
+    if (f.widthBits instanceof String widthString) {
+      return Integer.parseInt(widthString);
     }
     throw new RuntimeException(
         "What's wrong with the width of field: " + f.name + ", widthBits=" + f.widthBits);
