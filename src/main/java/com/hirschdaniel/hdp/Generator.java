@@ -17,7 +17,7 @@ import picocli.CommandLine.Parameters;
     subcommands = {CommandLine.HelpCommand.class})
 public class Generator implements Callable<Integer> {
 
-  @Parameters(arity = "1", description = "Input data file (binary/hex)")
+  @Parameters(arity = "1", description = "Input data file (must be raw binary)")
   File inputFile;
 
   @Option(names = "--spec", required = true, description = "Packet spec JSON")
@@ -35,8 +35,8 @@ public class Generator implements Callable<Integer> {
 
     try {
 
-      byte[] input = loadInput(inputFile);
-      PacketSpec spec = loadSpec(specFile);
+      byte[] input = loadAsBytes(inputFile);
+      PacketSpecification spec = loadSpecification(specFile);
 
       PacketGenerator gen = new PacketGenerator(spec, input);
       byte[] packet = gen.generate();
@@ -51,11 +51,11 @@ public class Generator implements Callable<Integer> {
     }
   }
 
-  private PacketSpec loadSpec(File specFile) {
+  private PacketSpecification loadSpecification(File specFile) {
     try {
       ObjectMapper mapper =
           JsonMapper.builder().configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_ENUMS, true).build();
-      return mapper.readValue(specFile, PacketSpec.class);
+      return mapper.readValue(specFile, PacketSpecification.class);
     } catch (Exception e) {
       e.printStackTrace();
       System.exit(-1);
@@ -63,7 +63,7 @@ public class Generator implements Callable<Integer> {
     return null;
   }
 
-  private byte[] loadInput(File f) throws IOException {
+  private byte[] loadAsBytes(File f) throws IOException {
     return Files.readAllBytes(f.toPath());
   }
 

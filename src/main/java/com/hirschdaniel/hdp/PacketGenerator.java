@@ -4,12 +4,12 @@ import java.util.Arrays;
 import java.util.BitSet;
 
 public class PacketGenerator {
-  private final PacketSpec spec;
+  private final PacketSpecification spec;
   private final byte[] inputData;
   private final BitSet packetBits = new BitSet(16384);
   private int currentBit = 0;
 
-  public PacketGenerator(PacketSpec spec, byte[] inputData) {
+  public PacketGenerator(PacketSpecification spec, byte[] inputData) {
     this.spec = spec;
     this.inputData = inputData != null ? inputData : new byte[0];
   }
